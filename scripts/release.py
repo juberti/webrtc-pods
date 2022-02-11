@@ -24,7 +24,7 @@ class BuildMetadata:
 
 def getNextRelease():
     # Get current version
-    releases = requests.get("https://api.github.com/repos/stasel/WebRTC/releases").json()
+    releases = requests.get("https://api.github.com/repos/alphaexplorationco/webrtc-pods/releases").json()
     latestReleaseVersion = int(releases[0]["name"][1:])
     latestReleaseDate = datetime.fromisoformat(releases[0]["published_at"].replace("Z", ""))
     print(f"Latest release: version {latestReleaseVersion}, date: {latestReleaseDate}")
@@ -46,7 +46,7 @@ def isReleaseAvailable(release):
 
 def buildWebRTC(branch):
     os.environ["BITCODE"] = "true"
-    os.environ["BUILD_VP9"] = "true"
+    os.environ["BUILD_VP9"] = "false"
     os.environ["BRANCH"] = branch
     os.environ["IOS"] = "true"
     os.environ["MACOS"] = "true"
@@ -72,7 +72,7 @@ def createReleaseDraft(release, buildMetadata):
         'body': body
     }
     headers = {'accept': 'application/vnd.github.v3+json', 'Authorization': f'token {GITHUB_TOKEN}'}
-    return requests.post("https://api.github.com/repos/stasel/WebRTC/releases", json = fields, headers = headers).json()
+    return requests.post("https://api.github.com/repos/alphaexplorationco/webrtc-pods/releases", json = fields, headers = headers).json()
 
 def uploadReleaseAsset(url, assetLocalPath, assetName):
     url = url.replace(u'{?name,label}','')
@@ -94,7 +94,7 @@ def createPullRequest(release, head):
         'base': 'latest',
         'body': 'Created by an automated sotfware 🤖'
     }
-    response = requests.post("https://api.github.com/repos/stasel/WebRTC/pulls", json = body, headers = headers)
+    response = requests.post("https://api.github.com/repos/alphaexplorationco/webrtc-pods/pulls", json = body, headers = headers)
     success = response.status_code == requests.codes.created
     if not success:
         print(response)
@@ -160,7 +160,7 @@ os.system(f"sed -i '' -E 's/.upToNextMajor([0-9]+.0.0)/.upToNextMajor({nextRelea
 cartageFile = open("WebRTC.json", 'r')
 
 cartageJSON = json.loads(cartageFile.read())
-cartageJSON[f'{nextRelease.version}.0.0'] = f'https://github.com/stasel/WebRTC/releases/download/{nextRelease.version}.0.0/WebRTC-M{nextRelease.version}.xcframework.zip'
+cartageJSON[f'{nextRelease.version}.0.0'] = f'https://github.com/alphaexplorationco/webrtc-pods/releases/download/{nextRelease.version}.0.0/WebRTC-M{nextRelease.version}.xcframework.zip'
 cartageFile.close()
 cartageJSONWrite = open("WebRTC.json", 'w')
 cartageJSONWrite.write(json.dumps(cartageJSON, indent=4, sort_keys=True))
@@ -184,7 +184,7 @@ if not prResult:
 if TELEGRAM_TOKEN and TELEGRAM_CHAT_ID:
     print("➡️ Sending Telegram notification...")
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
-    message = f"New WebRTC Release M{nextRelease.version} is now available.\nCheck the PR here: https://github.com/stasel/WebRTC/pulls"
+    message = f"New WebRTC Release M{nextRelease.version} is now available.\nCheck the PR here: https://github.com/alphaexplorationco/webrtc-pods/pulls"
     bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
 
 print(f"✅ Done")
