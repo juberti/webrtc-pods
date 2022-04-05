@@ -1,6 +1,6 @@
 Pod::Spec.new do |spec|
 
-  spec.name         = "ClubhouseWebRTC"
+  spec.name         = "WebRTC-lib"
   spec.version      = "97.0.0"
   spec.summary      = "Unofficial distribution of WebRTC framework binaries for iOS."
   spec.description  = <<-DESC
