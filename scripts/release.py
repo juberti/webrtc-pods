@@ -3,7 +3,7 @@ import json
 import requests
 from datetime import datetime, timedelta
 from dataclasses import dataclass
-import telegram
+#import telegram
 
 GITHUB_TOKEN=os.environ.get("GITHUB_TOKEN")
 TELEGRAM_TOKEN=os.environ.get("TELEGRAM_TOKEN")
@@ -24,7 +24,9 @@ class BuildMetadata:
 
 def getNextRelease():
     # Get current version
-    releases = requests.get("https://api.github.com/repos/alphaexplorationco/webrtc-pods/releases").json()
+    headers = {'accept': 'application/vnd.github.v3+json', 'Authorization': f'token {GITHUB_TOKEN}'} 
+    releases = requests.get("https://api.github.com/repos/alphaexplorationco/webrtc-pods/releases", headers=headers).json()
+    print(releases)
     latestReleaseVersion = int(releases[0]["name"][1:])
     latestReleaseDate = datetime.fromisoformat(releases[0]["published_at"].replace("Z", ""))
     print(f"Latest release: version {latestReleaseVersion}, date: {latestReleaseDate}")
@@ -50,7 +52,7 @@ def buildWebRTC(branch):
     os.environ["BRANCH"] = branch
     os.environ["IOS"] = "true"
     os.environ["MACOS"] = "true"
-    os.environ["MAC_CATALYST"] = "true"
+    os.environ["MAC_CATALYST"] = "false"
 
     return os.system('sh scripts/build.sh') == 0
 
