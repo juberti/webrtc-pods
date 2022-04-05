@@ -1,0 +1,564 @@
+From 14804b5c215caa02c9c07d679aa9371213b508d5 Mon Sep 17 00:00:00 2001
+From: juberti <juberti@alphaexplorationco.com>
+Date: Mon, 4 Apr 2022 17:12:55 -0700
+Subject: [PATCH 1/2] Land sendbird RTCAudioSink patch
+
+---
+ sdk/BUILD.gn                                  |  6 ++++
+ .../Framework/Headers/WebRTC/RTCAudioSink.h   | 11 ++++++
+ sdk/objc/api/peerconnection/RTCAudioSink.h    | 25 ++++++++++++++
+ sdk/objc/api/peerconnection/RTCAudioSink.mm   | 34 +++++++++++++++++++
+ .../RTCPeerConnectionFactory+Native.h         |  4 ++-
+ .../peerconnection/RTCPeerConnectionFactory.h |  7 ++++
+ .../RTCPeerConnectionFactory.mm               | 16 ++++++++-
+ sdk/objc/native/api/audio_device_module.mm    | 12 +++++++
+ sdk/objc/native/src/audio/audio_device_ios.h  |  5 +++
+ sdk/objc/native/src/audio/audio_device_ios.mm | 11 ++++++
+ .../src/audio/audio_device_module_ios.h       |  4 ++-
+ .../src/audio/audio_device_module_ios.mm      |  9 +++++
+ sdk/objc/native/src/audio/audio_sink.h        | 16 +++++++++
+ sdk/objc/native/src/audio/audio_source_sink.h | 28 +++++++++++++++
+ .../native/src/audio/audio_source_sink.mm     | 28 +++++++++++++++
+ 15 files changed, 213 insertions(+), 3 deletions(-)
+ create mode 100644 sdk/objc/Framework/Headers/WebRTC/RTCAudioSink.h
+ create mode 100644 sdk/objc/api/peerconnection/RTCAudioSink.h
+ create mode 100644 sdk/objc/api/peerconnection/RTCAudioSink.mm
+ create mode 100644 sdk/objc/native/src/audio/audio_sink.h
+ create mode 100644 sdk/objc/native/src/audio/audio_source_sink.h
+ create mode 100644 sdk/objc/native/src/audio/audio_source_sink.mm
+
+diff --git a/sdk/BUILD.gn b/sdk/BUILD.gn
+index b19cb09500..c9c059f7aa 100644
+--- a/sdk/BUILD.gn
++++ b/sdk/BUILD.gn
+@@ -252,6 +252,8 @@ if (is_ios || is_mac) {
+         visibility = [ "*" ]
+ 
+         sources = [
++          "objc/native/src/audio/audio_source_sink.h",
++          "objc/native/src/audio/audio_source_sink.mm",
+           "objc/native/src/audio/audio_device_ios.h",
+           "objc/native/src/audio/audio_device_ios.mm",
+           "objc/native/src/audio/audio_device_module_ios.h",
+@@ -876,6 +878,8 @@ if (is_ios || is_mac) {
+         "objc/api/peerconnection/RTCAudioSource+Private.h",
+         "objc/api/peerconnection/RTCAudioSource.h",
+         "objc/api/peerconnection/RTCAudioSource.mm",
++        "objc/api/peerconnection/RTCAudioSink.h",
++        "objc/api/peerconnection/RTCAudioSink.mm",
+         "objc/api/peerconnection/RTCAudioTrack+Private.h",
+         "objc/api/peerconnection/RTCAudioTrack.h",
+         "objc/api/peerconnection/RTCAudioTrack.mm",
+@@ -1270,6 +1274,7 @@ if (is_ios || is_mac) {
+           "objc/helpers/RTCDispatcher.h",
+           "objc/helpers/UIDevice+RTCDevice.h",
+           "objc/api/peerconnection/RTCAudioSource.h",
++          "objc/api/peerconnection/RTCAudioSink.h",
+           "objc/api/peerconnection/RTCAudioTrack.h",
+           "objc/api/peerconnection/RTCConfiguration.h",
+           "objc/api/peerconnection/RTCDataChannel.h",
+@@ -1383,6 +1388,7 @@ if (is_ios || is_mac) {
+ 
+         sources = [
+           "objc/api/peerconnection/RTCAudioSource.h",
++          "objc/api/peerconnection/RTCAudioSink.h",
+           "objc/api/peerconnection/RTCAudioTrack.h",
+           "objc/api/peerconnection/RTCCertificate.h",
+           "objc/api/peerconnection/RTCConfiguration.h",
+diff --git a/sdk/objc/Framework/Headers/WebRTC/RTCAudioSink.h b/sdk/objc/Framework/Headers/WebRTC/RTCAudioSink.h
+new file mode 100644
+index 0000000000..25c0c79041
+--- /dev/null
++++ b/sdk/objc/Framework/Headers/WebRTC/RTCAudioSink.h
+@@ -0,0 +1,11 @@
++/*
++ *  Copyright 2016 The WebRTC project authors. All Rights Reserved.
++ *
++ *  Use of this source code is governed by a BSD-style license
++ *  that can be found in the LICENSE file in the root of the source
++ *  tree. An additional intellectual property rights grant can be found
++ *  in the file PATENTS.  All contributing project authors may
++ *  be found in the AUTHORS file in the root of the source tree.
++ */
++
++#import "api/peerconnection/RTCAudioSink.h"
+diff --git a/sdk/objc/api/peerconnection/RTCAudioSink.h b/sdk/objc/api/peerconnection/RTCAudioSink.h
+new file mode 100644
+index 0000000000..ad6f9ffc80
+--- /dev/null
++++ b/sdk/objc/api/peerconnection/RTCAudioSink.h
+@@ -0,0 +1,25 @@
++#import <Foundation/Foundation.h>
++#import <AVFoundation/AVFoundation.h>
++
++#import "RTCMacros.h"
++
++NS_ASSUME_NONNULL_BEGIN
++
++RTC_OBJC_EXPORT
++@interface RTC_OBJC_TYPE (RTCAudioSink) : NSObject
++
++- (instancetype)init;
++- (void)onLocalAudioFrameWithFlags:(AudioUnitRenderActionFlags *)flags 
++                    timeStamp:(const AudioTimeStamp *)timeStamp
++                    busNumber:(uint32_t)busNumber
++                    numFrames:(uint32_t)numFrames
++                    ioData:(AudioBufferList *)ioData;
++
++- (void)onRemoteAudioFrameWithFlags:(AudioUnitRenderActionFlags *)flags 
++                    timeStamp:(const AudioTimeStamp *)timeStamp
++                    busNumber:(uint32_t)busNumber
++                    numFrames:(uint32_t)numFrames
++                    ioData:(AudioBufferList *)ioData;
++@end
++
++NS_ASSUME_NONNULL_END
+diff --git a/sdk/objc/api/peerconnection/RTCAudioSink.mm b/sdk/objc/api/peerconnection/RTCAudioSink.mm
+new file mode 100644
+index 0000000000..8b466d91c6
+--- /dev/null
++++ b/sdk/objc/api/peerconnection/RTCAudioSink.mm
+@@ -0,0 +1,34 @@
++/*
++ *  Copyright 2016 The WebRTC project authors. All Rights Reserved.
++ *
++ *  Use of this source code is governed by a BSD-style license
++ *  that can be found in the LICENSE file in the root of the source
++ *  tree. An additional intellectual property rights grant can be found
++ *  in the file PATENTS.  All contributing project authors may
++ *  be found in the AUTHORS file in the root of the source tree.
++ */
++
++#import "RTCAudioSink.h"
++#import "base/RTCLogging.h"
++
++@implementation RTC_OBJC_TYPE (RTCAudioSink) {
++}
++
++- (instancetype)init {
++  self = [super init];
++  return self;
++}
++
++- (void)onLocalAudioFrameWithFlags:(AudioUnitRenderActionFlags *)flags 
++                    timeStamp:(const AudioTimeStamp *)timeStamp
++                    busNumber:(uint32_t)busNumber
++                    numFrames:(uint32_t)numFrames
++                    ioData:(AudioBufferList *)ioData { }
++
++- (void)onRemoteAudioFrameWithFlags:(AudioUnitRenderActionFlags *)flags 
++                    timeStamp:(const AudioTimeStamp *)timeStamp
++                    busNumber:(uint32_t)busNumber
++                    numFrames:(uint32_t)numFrames
++                    ioData:(AudioBufferList *)ioData { }
++
++@end
+\ No newline at end of file
+diff --git a/sdk/objc/api/peerconnection/RTCPeerConnectionFactory+Native.h b/sdk/objc/api/peerconnection/RTCPeerConnectionFactory+Native.h
+index f361b9f0ea..6b8b6e7fcf 100644
+--- a/sdk/objc/api/peerconnection/RTCPeerConnectionFactory+Native.h
++++ b/sdk/objc/api/peerconnection/RTCPeerConnectionFactory+Native.h
+@@ -69,7 +69,9 @@ NS_ASSUME_NONNULL_BEGIN
+ 
+ - (instancetype)
+     initWithEncoderFactory:(nullable id<RTC_OBJC_TYPE(RTCVideoEncoderFactory)>)encoderFactory
+-            decoderFactory:(nullable id<RTC_OBJC_TYPE(RTCVideoDecoderFactory)>)decoderFactory;
++            decoderFactory:(nullable id<RTC_OBJC_TYPE(RTCVideoDecoderFactory)>)decoderFactory
++                 audioSink:(nullable RTC_OBJC_TYPE(RTCAudioSink) *)audioSink
++ 
+ 
+ /** Initialize an RTCPeerConnection with a configuration, constraints, and
+  *  dependencies.
+diff --git a/sdk/objc/api/peerconnection/RTCPeerConnectionFactory.h b/sdk/objc/api/peerconnection/RTCPeerConnectionFactory.h
+index 88aac990f2..325c41d3a9 100644
+--- a/sdk/objc/api/peerconnection/RTCPeerConnectionFactory.h
++++ b/sdk/objc/api/peerconnection/RTCPeerConnectionFactory.h
+@@ -15,6 +15,7 @@
+ NS_ASSUME_NONNULL_BEGIN
+ 
+ @class RTC_OBJC_TYPE(RTCAudioSource);
++@class RTC_OBJC_TYPE(RTCAudioSink);
+ @class RTC_OBJC_TYPE(RTCAudioTrack);
+ @class RTC_OBJC_TYPE(RTCConfiguration);
+ @class RTC_OBJC_TYPE(RTCMediaConstraints);
+@@ -43,6 +44,12 @@ RTC_OBJC_EXPORT
+     initWithEncoderFactory:(nullable id<RTC_OBJC_TYPE(RTCVideoEncoderFactory)>)encoderFactory
+             decoderFactory:(nullable id<RTC_OBJC_TYPE(RTCVideoDecoderFactory)>)decoderFactory;
+ 
++/* Initialize object with injectable video encoder/decoder factories and audioSink */
++- (instancetype)
++    initWithEncoderFactory:(nullable id<RTC_OBJC_TYPE(RTCVideoEncoderFactory)>)encoderFactory
++            decoderFactory:(nullable id<RTC_OBJC_TYPE(RTCVideoDecoderFactory)>)decoderFactory
++            audioSink:(nullable RTC_OBJC_TYPE(RTCAudioSink) *)audioSink;
++
+ /** Initialize an RTCAudioSource with constraints. */
+ - (RTC_OBJC_TYPE(RTCAudioSource) *)audioSourceWithConstraints:
+     (nullable RTC_OBJC_TYPE(RTCMediaConstraints) *)constraints;
+diff --git a/sdk/objc/api/peerconnection/RTCPeerConnectionFactory.mm b/sdk/objc/api/peerconnection/RTCPeerConnectionFactory.mm
+index f7a17558f0..893bac3c1a 100644
+--- a/sdk/objc/api/peerconnection/RTCPeerConnectionFactory.mm
++++ b/sdk/objc/api/peerconnection/RTCPeerConnectionFactory.mm
+@@ -51,6 +51,9 @@
+ 
+ #if defined(WEBRTC_IOS)
+ #import "sdk/objc/native/api/audio_device_module.h"
++#import "sdk/objc/native/src/audio/audio_source_sink.h"
++#import "sdk/objc/native/src/audio/audio_device_module_ios.h"
++#import "RTCAudioSink.h"
+ #endif
+ 
+ // Adding the nogncheck to disable the including header check.
+@@ -71,12 +74,23 @@ @implementation RTC_OBJC_TYPE (RTCPeerConnectionFactory) {
+ 
+ - (rtc::scoped_refptr<webrtc::AudioDeviceModule>)audioDeviceModule {
+ #if defined(WEBRTC_IOS)
++  RTCLogInfo(@"Creating AudioDeviceModule without AudioSourceSink");
+   return webrtc::CreateAudioDeviceModule();
+ #else
+   return nullptr;
+ #endif
+ }
+ 
++- (rtc::scoped_refptr<webrtc::AudioDeviceModule>)audioDeviceModuleWithAudioSink:(nullable RTC_OBJC_TYPE(RTCAudioSink) *)audioSink { 
++#if defined(WEBRTC_IOS)
++  RTCLogInfo(@"Creating AudioDeviceModule with AudioSourceSink");
++  webrtc::AudioSourceSink *sink = new webrtc::AudioSourceSink(audioSink);
++  return webrtc::CreateAudioDeviceModule(sink);
++#else
++  return nullptr;
++#endif
++}
++
+ - (instancetype)init {
+ #ifdef HAVE_NO_MEDIA
+   return [self initWithNoMedia];
+@@ -88,7 +102,7 @@ - (instancetype)init {
+                                             RTCVideoEncoderFactoryH264) alloc] init])
+               nativeVideoDecoderFactory:webrtc::ObjCToNativeVideoDecoderFactory([[RTC_OBJC_TYPE(
+                                             RTCVideoDecoderFactoryH264) alloc] init])
+-                      audioDeviceModule:[self audioDeviceModule]
++                      audioDeviceModule:[self audioDeviceModuleWithAudioSink:audioSink]
+                   audioProcessingModule:nullptr];
+ #endif
+ }
+diff --git a/sdk/objc/native/api/audio_device_module.mm b/sdk/objc/native/api/audio_device_module.mm
+index 55ea7e3f34..f563692223 100644
+--- a/sdk/objc/native/api/audio_device_module.mm
++++ b/sdk/objc/native/api/audio_device_module.mm
+@@ -14,6 +14,7 @@
+ #include "rtc_base/ref_counted_object.h"
+ 
+ #include "sdk/objc/native/src/audio/audio_device_module_ios.h"
++#import "sdk/objc/native/src/audio/audio_source_sink.h"
+ 
+ namespace webrtc {
+ 
+@@ -26,4 +27,15 @@
+   return nullptr;
+ #endif
+ }
++
++rtc::scoped_refptr<AudioDeviceModule> CreateAudioDeviceModule(webrtc::AudioSourceSink* audioSink) {
++  RTC_LOG(INFO) << __FUNCTION__;
++#if defined(WEBRTC_IOS)
++  return new rtc::RefCountedObject<ios_adm::AudioDeviceModuleIOS>(audioSink);
++#else
++  RTC_LOG(LERROR)
++      << "current platform is not supported => this module will self destruct!";
++  return nullptr;
++#endif
++}
+ }
+diff --git a/sdk/objc/native/src/audio/audio_device_ios.h b/sdk/objc/native/src/audio/audio_device_ios.h
+index 5afc49a461..d2ecf1008a 100644
+--- a/sdk/objc/native/src/audio/audio_device_ios.h
++++ b/sdk/objc/native/src/audio/audio_device_ios.h
+@@ -26,6 +26,7 @@ RTC_FWD_DECL_OBJC_CLASS(RTCNativeAudioSessionDelegateAdapter);
+ 
+ namespace webrtc {
+ 
++class AudioSourceSink;
+ class FineAudioBuffer;
+ 
+ namespace ios_adm {
+@@ -161,6 +162,8 @@ class AudioDeviceIOS : public AudioDeviceGeneric,
+   // Handles messages from posts.
+   void OnMessage(rtc::Message* msg) override;
+ 
++  void AddAudioSourceSink(AudioSourceSink* audioSink);
++
+   bool IsInterrupted();
+ 
+  private:
+@@ -300,6 +303,8 @@ class AudioDeviceIOS : public AudioDeviceGeneric,
+ 
+   // Contains the time for when the last output volume change was detected.
+   int64_t last_output_volume_change_time_ RTC_GUARDED_BY(thread_checker_);
++
++  AudioSourceSink* audioSink_;
+ };
+ }  // namespace ios_adm
+ }  // namespace webrtc
+diff --git a/sdk/objc/native/src/audio/audio_device_ios.mm b/sdk/objc/native/src/audio/audio_device_ios.mm
+index 248f3fcfd2..25b03c5b32 100644
+--- a/sdk/objc/native/src/audio/audio_device_ios.mm
++++ b/sdk/objc/native/src/audio/audio_device_ios.mm
+@@ -33,6 +33,8 @@
+ #import "components/audio/RTCAudioSessionConfiguration.h"
+ #import "components/audio/RTCNativeAudioSessionDelegateAdapter.h"
+ 
++#import "audio_source_sink.h"
++
+ namespace webrtc {
+ namespace ios_adm {
+ 
+@@ -418,6 +420,8 @@ static void LogDeviceInfo() {
+   // Use the FineAudioBuffer instance to convert between native buffer size
+   // and the 10ms buffer size used by WebRTC.
+   fine_audio_buffer_->DeliverRecordedData(record_audio_buffer_, kFixedRecordDelayEstimate);
++
++  audioSink_->OnLocalAudioFrame(flags, time_stamp, bus_number, num_frames, &audio_buffer_list);
+   return noErr;
+ }
+ 
+@@ -477,6 +481,8 @@ static void LogDeviceInfo() {
+   fine_audio_buffer_->GetPlayoutData(
+       rtc::ArrayView<int16_t>(static_cast<int16_t*>(audio_buffer->mData), num_frames),
+       kFixedPlayoutDelayEstimate);
++  
++  audioSink_->OnRemoteAudioFrame(flags, time_stamp, bus_number, num_frames, io_data);
+   return noErr;
+ }
+ 
+@@ -1162,5 +1168,10 @@ static void LogDeviceInfo() {
+   return 0;
+ }
+ 
++void AudioDeviceIOS::AddAudioSourceSink(webrtc::AudioSourceSink* audioSink) {
++  RTC_LOG(LS_VERBOSE) << "AddAudioSourceSink for AudioDeviceIOS" << audioSink;
++  audioSink_ = audioSink;
++}
++
+ }  // namespace ios_adm
+ }  // namespace webrtc
+diff --git a/sdk/objc/native/src/audio/audio_device_module_ios.h b/sdk/objc/native/src/audio/audio_device_module_ios.h
+index 9bcf114e32..c69eda1ccb 100644
+--- a/sdk/objc/native/src/audio/audio_device_module_ios.h
++++ b/sdk/objc/native/src/audio/audio_device_module_ios.h
+@@ -23,6 +23,7 @@
+ namespace webrtc {
+ 
+ class AudioDeviceGeneric;
++class AudioSourceSink;
+ 
+ namespace ios_adm {
+ 
+@@ -31,6 +32,7 @@ class AudioDeviceModuleIOS : public AudioDeviceModule {
+   int32_t AttachAudioBuffer();
+ 
+   explicit AudioDeviceModuleIOS(bool bypass_voice_processing);
++  explicit AudioDeviceModuleIOS(AudioSourceSink* audioSink);
+   ~AudioDeviceModuleIOS() override;
+ 
+   // Retrieve the currently utilized audio layer
+@@ -125,7 +127,6 @@ class AudioDeviceModuleIOS : public AudioDeviceModule {
+   int32_t EnableBuiltInNS(bool enable) override;
+ 
+   int32_t GetPlayoutUnderrunCount() const override;
+-
+ #if defined(WEBRTC_IOS)
+   int GetPlayoutAudioParameters(AudioParameters* params) const override;
+   int GetRecordAudioParameters(AudioParameters* params) const override;
+@@ -136,6 +137,7 @@ class AudioDeviceModuleIOS : public AudioDeviceModule {
+   const std::unique_ptr<TaskQueueFactory> task_queue_factory_;
+   std::unique_ptr<AudioDeviceIOS> audio_device_;
+   std::unique_ptr<AudioDeviceBuffer> audio_device_buffer_;
++  AudioSourceSink* audio_sink_;
+ };
+ }  // namespace ios_adm
+ }  // namespace webrtc
+diff --git a/sdk/objc/native/src/audio/audio_device_module_ios.mm b/sdk/objc/native/src/audio/audio_device_module_ios.mm
+index 33ba926bec..7640ad9829 100644
+--- a/sdk/objc/native/src/audio/audio_device_module_ios.mm
++++ b/sdk/objc/native/src/audio/audio_device_module_ios.mm
+@@ -21,6 +21,7 @@
+ 
+ #if defined(WEBRTC_IOS)
+ #include "audio_device_ios.h"
++#include "audio_source_sink.h"
+ #endif
+ 
+ #define CHECKinitialized_() \
+@@ -47,6 +48,14 @@
+   RTC_LOG(LS_INFO) << "iPhone Audio APIs will be utilized.";
+ }
+ 
++AudioDeviceModuleIOS::AudioDeviceModuleIOS(RTCAudioSink* audio_sink)
++     : task_queue_factory_(CreateDefaultTaskQueueFactory()) {
++   RTC_LOG(INFO) << "current platform is IOS";
++   RTC_LOG(INFO) << "iPhone Audio APIs will be utilized.";
++   RTC_LOG(INFO) << "Initializing AudioDeviceModuleIOS with AudioSink";
++   audio_sink_ = audioSink;
++}
++
+   int32_t AudioDeviceModuleIOS::AttachAudioBuffer() {
+     RTC_DLOG(LS_INFO) << __FUNCTION__;
+     audio_device_->AttachAudioBuffer(audio_device_buffer_.get());
+diff --git a/sdk/objc/native/src/audio/audio_sink.h b/sdk/objc/native/src/audio/audio_sink.h
+new file mode 100644
+index 0000000000..97b8e7a3b7
+--- /dev/null
++++ b/sdk/objc/native/src/audio/audio_sink.h
+@@ -0,0 +1,16 @@
++#import "sdk/objc/api/peerconnection/RTCAudioSink.h"
++
++namespace webrtc {
++    class AudioSourceSink {
++        public: 
++        AudioSourceSink(RTCAudioSink *sink) {
++            sink_ = sink;
++        }
++        void onAudioFrame(int32_t frame) {
++            [sink_ onAudioframe:frame];
++        }
++
++        private:
++        __weak RTCAudioSink *sink_;
++    }
++}
+\ No newline at end of file
+diff --git a/sdk/objc/native/src/audio/audio_source_sink.h b/sdk/objc/native/src/audio/audio_source_sink.h
+new file mode 100644
+index 0000000000..3396f27332
+--- /dev/null
++++ b/sdk/objc/native/src/audio/audio_source_sink.h
+@@ -0,0 +1,28 @@
++#ifndef SDK_OBJC_NATIVE_SRC_AUDIO_AUDIO_SOURCE_SINK_H_
++#define SDK_OBJC_NATIVE_SRC_AUDIO_AUDIO_SOURCE_SINK_H_
++
++#include "sdk/objc/base/RTCMacros.h"
++#include <AudioUnit/AudioUnit.h>
++
++RTC_FWD_DECL_OBJC_CLASS(RTCAudioSink);
++
++namespace webrtc {
++    class AudioSourceSink {
++        public: 
++        AudioSourceSink(RTCAudioSink* sink);
++        void OnLocalAudioFrame(AudioUnitRenderActionFlags* flags,
++                                          const AudioTimeStamp* time_stamp,
++                                          UInt32 bus_number,
++                                          UInt32 num_frames,
++                                          AudioBufferList* io_data);
++        void OnRemoteAudioFrame(AudioUnitRenderActionFlags* flags,
++                                          const AudioTimeStamp* time_stamp,
++                                          UInt32 bus_number,
++                                          UInt32 num_frames,
++                                          AudioBufferList* io_data);
++        private:
++        __weak RTCAudioSink *sink_;
++    };
++}
++
++#endif // SDK_OBJC_NATIVE_SRC_AUDIO_AUDIO_SOURCE_SINK_H_
+diff --git a/sdk/objc/native/src/audio/audio_source_sink.mm b/sdk/objc/native/src/audio/audio_source_sink.mm
+new file mode 100644
+index 0000000000..11cf958591
+--- /dev/null
++++ b/sdk/objc/native/src/audio/audio_source_sink.mm
+@@ -0,0 +1,28 @@
++#import "sdk/objc/native/src/audio/audio_source_sink.h"
++#import "sdk/objc/api/peerconnection/RTCAudioSink.h"
++#import "base/RTCLogging.h"
++#import "rtc_base/logging.h"
++
++namespace webrtc {
++  AudioSourceSink::AudioSourceSink(RTCAudioSink *sink) {
++    sink_ = sink;
++  }
++
++  void AudioSourceSink::OnLocalAudioFrame(AudioUnitRenderActionFlags* flags,
++                                          const AudioTimeStamp* time_stamp,
++                                          UInt32 bus_number,
++                                          UInt32 num_frames,
++                                          AudioBufferList* io_data) {
++    RTC_LOG(LS_VERBOSE) << __FUNCTION__;
++    [sink_ onLocalAudioFrameWithFlags:flags timeStamp:time_stamp busNumber:bus_number numFrames:num_frames ioData:io_data];
++  }
++
++  void AudioSourceSink::OnRemoteAudioFrame(AudioUnitRenderActionFlags* flags,
++                                          const AudioTimeStamp* time_stamp,
++                                          UInt32 bus_number,
++                                          UInt32 num_frames,
++                                          AudioBufferList* io_data) {
++    RTC_LOG(LS_VERBOSE) << __FUNCTION__;
++    [sink_ onRemoteAudioFrameWithFlags:flags timeStamp:time_stamp busNumber:bus_number numFrames:num_frames ioData:io_data];
++  }
++}
+\ No newline at end of file
+-- 
+2.32.0 (Apple Git-132)
+
+
+From 10e2328b26838c78ae9663d442a4b695d204783f Mon Sep 17 00:00:00 2001
+From: juberti <juberti@alphaexplorationco.com>
+Date: Mon, 4 Apr 2022 18:18:47 -0700
+Subject: [PATCH 2/2] Fix build issues
+
+---
+ .../peerconnection/RTCPeerConnectionFactory+Native.h  |  2 +-
+ .../api/peerconnection/RTCPeerConnectionFactory.mm    | 11 +++++++++--
+ 2 files changed, 10 insertions(+), 3 deletions(-)
+
+diff --git a/sdk/objc/api/peerconnection/RTCPeerConnectionFactory+Native.h b/sdk/objc/api/peerconnection/RTCPeerConnectionFactory+Native.h
+index 6b8b6e7fcf..dcd3afe104 100644
+--- a/sdk/objc/api/peerconnection/RTCPeerConnectionFactory+Native.h
++++ b/sdk/objc/api/peerconnection/RTCPeerConnectionFactory+Native.h
+@@ -70,7 +70,7 @@ NS_ASSUME_NONNULL_BEGIN
+ - (instancetype)
+     initWithEncoderFactory:(nullable id<RTC_OBJC_TYPE(RTCVideoEncoderFactory)>)encoderFactory
+             decoderFactory:(nullable id<RTC_OBJC_TYPE(RTCVideoDecoderFactory)>)decoderFactory
+-                 audioSink:(nullable RTC_OBJC_TYPE(RTCAudioSink) *)audioSink
++                 audioSink:(nullable RTC_OBJC_TYPE(RTCAudioSink) *)audioSink;
+  
+ 
+ /** Initialize an RTCPeerConnection with a configuration, constraints, and
+diff --git a/sdk/objc/api/peerconnection/RTCPeerConnectionFactory.mm b/sdk/objc/api/peerconnection/RTCPeerConnectionFactory.mm
+index 893bac3c1a..dbb2168693 100644
+--- a/sdk/objc/api/peerconnection/RTCPeerConnectionFactory.mm
++++ b/sdk/objc/api/peerconnection/RTCPeerConnectionFactory.mm
+@@ -102,7 +102,7 @@ - (instancetype)init {
+                                             RTCVideoEncoderFactoryH264) alloc] init])
+               nativeVideoDecoderFactory:webrtc::ObjCToNativeVideoDecoderFactory([[RTC_OBJC_TYPE(
+                                             RTCVideoDecoderFactoryH264) alloc] init])
+-                      audioDeviceModule:[self audioDeviceModuleWithAudioSink:audioSink]
++                      audioDeviceModule:[self audioDeviceModule]
+                   audioProcessingModule:nullptr];
+ #endif
+ }
+@@ -110,6 +110,13 @@ - (instancetype)init {
+ - (instancetype)
+     initWithEncoderFactory:(nullable id<RTC_OBJC_TYPE(RTCVideoEncoderFactory)>)encoderFactory
+             decoderFactory:(nullable id<RTC_OBJC_TYPE(RTCVideoDecoderFactory)>)decoderFactory {
++  return [self initWithEncoderFactory:encoderFactory decoderFactory:decoderFactory audioSink:nullptr];
++}
++
++- (instancetype)
++    initWithEncoderFactory:(nullable id<RTC_OBJC_TYPE(RTCVideoEncoderFactory)>)encoderFactory
++            decoderFactory:(nullable id<RTC_OBJC_TYPE(RTCVideoDecoderFactory)>)decoderFactory
++                 audioSink:(nullable RTC_OBJC_TYPE(RTCAudioSink) *)audioSink {
+ #ifdef HAVE_NO_MEDIA
+   return [self initWithNoMedia];
+ #else
+@@ -125,7 +132,7 @@ - (instancetype)init {
+                        nativeAudioDecoderFactory:webrtc::CreateBuiltinAudioDecoderFactory()
+                        nativeVideoEncoderFactory:std::move(native_encoder_factory)
+                        nativeVideoDecoderFactory:std::move(native_decoder_factory)
+-                               audioDeviceModule:[self audioDeviceModule]
++                               audioDeviceModule:[self audioDeviceModuleWithAudioSink:audioSink]
+                            audioProcessingModule:nullptr];
+ #endif
+ }
+-- 
+2.32.0 (Apple Git-132)
+
