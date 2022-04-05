@@ -99,13 +99,13 @@ index 0000000000..ad6f9ffc80
 +@interface RTC_OBJC_TYPE (RTCAudioSink) : NSObject
 +
 +- (instancetype)init;
-+- (void)onLocalAudioFrameWithFlags:(AudioUnitRenderActionFlags *)flags 
++- (void)onLocalAudioFrameWithFlags:(AudioUnitRenderActionFlags *)flags
 +                    timeStamp:(const AudioTimeStamp *)timeStamp
 +                    busNumber:(uint32_t)busNumber
 +                    numFrames:(uint32_t)numFrames
 +                    ioData:(AudioBufferList *)ioData;
 +
-+- (void)onRemoteAudioFrameWithFlags:(AudioUnitRenderActionFlags *)flags 
++- (void)onRemoteAudioFrameWithFlags:(AudioUnitRenderActionFlags *)flags
 +                    timeStamp:(const AudioTimeStamp *)timeStamp
 +                    busNumber:(uint32_t)busNumber
 +                    numFrames:(uint32_t)numFrames
@@ -140,13 +140,13 @@ index 0000000000..8b466d91c6
 +  return self;
 +}
 +
-+- (void)onLocalAudioFrameWithFlags:(AudioUnitRenderActionFlags *)flags 
++- (void)onLocalAudioFrameWithFlags:(AudioUnitRenderActionFlags *)flags
 +                    timeStamp:(const AudioTimeStamp *)timeStamp
 +                    busNumber:(uint32_t)busNumber
 +                    numFrames:(uint32_t)numFrames
 +                    ioData:(AudioBufferList *)ioData { }
 +
-+- (void)onRemoteAudioFrameWithFlags:(AudioUnitRenderActionFlags *)flags 
++- (void)onRemoteAudioFrameWithFlags:(AudioUnitRenderActionFlags *)flags
 +                    timeStamp:(const AudioTimeStamp *)timeStamp
 +                    busNumber:(uint32_t)busNumber
 +                    numFrames:(uint32_t)numFrames
