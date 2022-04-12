@@ -1,5 +1,5 @@
 diff --git a/sdk/BUILD.gn b/sdk/BUILD.gn
-index 90e245a18d..9988ff1d2b 100644
+index 19e612e2d1..4b3f3478bb 100644
 --- a/sdk/BUILD.gn
 +++ b/sdk/BUILD.gn
 @@ -246,6 +246,8 @@ if (is_ios || is_mac) {
@@ -11,7 +11,7 @@ index 90e245a18d..9988ff1d2b 100644
            "objc/native/src/audio/audio_device_ios.h",
            "objc/native/src/audio/audio_device_ios.mm",
            "objc/native/src/audio/audio_device_module_ios.h",
-@@ -868,6 +870,8 @@ if (is_ios || is_mac) {
+@@ -865,6 +867,8 @@ if (is_ios || is_mac) {
          "objc/api/peerconnection/RTCAudioSource+Private.h",
          "objc/api/peerconnection/RTCAudioSource.h",
          "objc/api/peerconnection/RTCAudioSource.mm",
@@ -20,7 +20,7 @@ index 90e245a18d..9988ff1d2b 100644
          "objc/api/peerconnection/RTCAudioTrack+Private.h",
          "objc/api/peerconnection/RTCAudioTrack.h",
          "objc/api/peerconnection/RTCAudioTrack.mm",
-@@ -1257,6 +1261,7 @@ if (is_ios || is_mac) {
+@@ -1255,6 +1259,7 @@ if (is_ios || is_mac) {
            "objc/helpers/RTCDispatcher.h",
            "objc/helpers/UIDevice+RTCDevice.h",
            "objc/api/peerconnection/RTCAudioSource.h",
@@ -28,7 +28,7 @@ index 90e245a18d..9988ff1d2b 100644
            "objc/api/peerconnection/RTCAudioTrack.h",
            "objc/api/peerconnection/RTCConfiguration.h",
            "objc/api/peerconnection/RTCDataChannel.h",
-@@ -1368,6 +1373,7 @@ if (is_ios || is_mac) {
+@@ -1366,6 +1371,7 @@ if (is_ios || is_mac) {
  
          sources = [
            "objc/api/peerconnection/RTCAudioSource.h",
@@ -107,7 +107,7 @@ index 0000000000..6f2da27e86
 +                    ioData:(AudioBufferList *)ioData { }
 +
 +@end
-\ No newline at end of file
++
 diff --git a/sdk/objc/api/peerconnection/RTCPeerConnectionFactory+Native.h b/sdk/objc/api/peerconnection/RTCPeerConnectionFactory+Native.h
 index f361b9f0ea..8890a6c248 100644
 --- a/sdk/objc/api/peerconnection/RTCPeerConnectionFactory+Native.h
@@ -209,34 +209,48 @@ index 63ba934e3d..ae8a8fc82b 100644
                             audioProcessingModule:nullptr];
  #endif
  }
-diff --git a/sdk/objc/native/api/audio_device_module.mm b/sdk/objc/native/api/audio_device_module.mm
-index 3c2790e38d..709f8bc65d 100644
---- a/sdk/objc/native/api/audio_device_module.mm
-+++ b/sdk/objc/native/api/audio_device_module.mm
-@@ -14,6 +14,7 @@
- #include "rtc_base/ref_counted_object.h"
- 
- #include "sdk/objc/native/src/audio/audio_device_module_ios.h"
-+#import "sdk/objc/native/src/audio/audio_source_sink.h"
+diff --git a/sdk/objc/native/api/audio_device_module.h b/sdk/objc/native/api/audio_device_module.h
+index 3405469709..5e7f5a150f 100644
+--- a/sdk/objc/native/api/audio_device_module.h
++++ b/sdk/objc/native/api/audio_device_module.h
+@@ -17,13 +17,17 @@
  
  namespace webrtc {
  
-@@ -26,4 +27,15 @@
-   return nullptr;
- #endif
- }
++class AudioSourceSink;
 +
-+rtc::scoped_refptr<AudioDeviceModule> CreateAudioDeviceModule(webrtc::AudioSourceSink* audioSink) {
-+  RTC_LOG(INFO) << __FUNCTION__;
-+#if defined(WEBRTC_IOS)
-+  return new rtc::RefCountedObject<ios_adm::AudioDeviceModuleIOS>(audioSink);
-+#else
-+  RTC_LOG(LERROR)
-+      << "current platform is not supported => this module will self destruct!";
-+  return nullptr;
-+#endif
-+}
- }
+ // If `bypass_voice_processing` is true, WebRTC will attempt to disable hardware
+ // audio processing on iOS.
+ // Warning: Setting `bypass_voice_processing` will have unpredictable
+ // consequences for the audio path in the device. It is not advisable to use in
+ // most scenarios.
+ rtc::scoped_refptr<AudioDeviceModule> CreateAudioDeviceModule(
+-    bool bypass_voice_processing = false);
++    AudioSourceSink* audio_sink = nullptr,
++    bool bypass_voice_processing = false
++);
+ 
+ }  // namespace webrtc
+ 
+diff --git a/sdk/objc/native/api/audio_device_module.mm b/sdk/objc/native/api/audio_device_module.mm
+index 3c2790e38d..9673309aa7 100644
+--- a/sdk/objc/native/api/audio_device_module.mm
++++ b/sdk/objc/native/api/audio_device_module.mm
+@@ -17,10 +17,11 @@
+ 
+ namespace webrtc {
+ 
+-rtc::scoped_refptr<AudioDeviceModule> CreateAudioDeviceModule(bool bypass_voice_processing) {
++rtc::scoped_refptr<AudioDeviceModule> CreateAudioDeviceModule(AudioSourceSink* audio_sink,
++                                                              bool bypass_voice_processing) {
+   RTC_DLOG(LS_INFO) << __FUNCTION__;
+ #if defined(WEBRTC_IOS)
+-  return new rtc::RefCountedObject<ios_adm::AudioDeviceModuleIOS>(bypass_voice_processing);
++  return new rtc::RefCountedObject<ios_adm::AudioDeviceModuleIOS>(audio_sink, bypass_voice_processing);
+ #else
+   RTC_LOG(LS_ERROR) << "current platform is not supported => this module will self destruct!";
+   return nullptr;
+
 diff --git a/sdk/objc/native/src/audio/audio_device_ios.h b/sdk/objc/native/src/audio/audio_device_ios.h
 index 5afc49a461..d2ecf1008a 100644
 --- a/sdk/objc/native/src/audio/audio_device_ios.h
@@ -268,7 +282,7 @@ index 5afc49a461..d2ecf1008a 100644
  }  // namespace ios_adm
  }  // namespace webrtc
 diff --git a/sdk/objc/native/src/audio/audio_device_ios.mm b/sdk/objc/native/src/audio/audio_device_ios.mm
-index 3ec7d0b75a..17a4488536 100644
+index 248f3fcfd2..fb6ebf08d5 100644
 --- a/sdk/objc/native/src/audio/audio_device_ios.mm
 +++ b/sdk/objc/native/src/audio/audio_device_ios.mm
 @@ -33,6 +33,8 @@
@@ -310,7 +324,7 @@ index 3ec7d0b75a..17a4488536 100644
  }  // namespace ios_adm
  }  // namespace webrtc
 diff --git a/sdk/objc/native/src/audio/audio_device_module_ios.h b/sdk/objc/native/src/audio/audio_device_module_ios.h
-index 9bcf114e32..c69eda1ccb 100644
+index 9bcf114e32..ef24bd071d 100644
 --- a/sdk/objc/native/src/audio/audio_device_module_ios.h
 +++ b/sdk/objc/native/src/audio/audio_device_module_ios.h
 @@ -23,6 +23,7 @@
@@ -321,15 +335,16 @@ index 9bcf114e32..c69eda1ccb 100644
  
  namespace ios_adm {
  
-@@ -31,6 +32,7 @@ class AudioDeviceModuleIOS : public AudioDeviceModule {
+@@ -30,7 +31,7 @@ class AudioDeviceModuleIOS : public AudioDeviceModule {
+  public:
    int32_t AttachAudioBuffer();
  
-   explicit AudioDeviceModuleIOS(bool bypass_voice_processing);
-+  explicit AudioDeviceModuleIOS(AudioSourceSink* audioSink);
+-  explicit AudioDeviceModuleIOS(bool bypass_voice_processing);
++  AudioDeviceModuleIOS(AudioSourceSink* audio_sink, bool bypass_voice_processing);
    ~AudioDeviceModuleIOS() override;
  
    // Retrieve the currently utilized audio layer
-@@ -125,7 +127,6 @@ class AudioDeviceModuleIOS : public AudioDeviceModule {
+@@ -125,7 +126,6 @@ class AudioDeviceModuleIOS : public AudioDeviceModule {
    int32_t EnableBuiltInNS(bool enable) override;
  
    int32_t GetPlayoutUnderrunCount() const override;
@@ -337,7 +352,7 @@ index 9bcf114e32..c69eda1ccb 100644
  #if defined(WEBRTC_IOS)
    int GetPlayoutAudioParameters(AudioParameters* params) const override;
    int GetRecordAudioParameters(AudioParameters* params) const override;
-@@ -136,6 +137,7 @@ class AudioDeviceModuleIOS : public AudioDeviceModule {
+@@ -136,6 +136,7 @@ class AudioDeviceModuleIOS : public AudioDeviceModule {
    const std::unique_ptr<TaskQueueFactory> task_queue_factory_;
    std::unique_ptr<AudioDeviceIOS> audio_device_;
    std::unique_ptr<AudioDeviceBuffer> audio_device_buffer_;
@@ -346,7 +361,7 @@ index 9bcf114e32..c69eda1ccb 100644
  }  // namespace ios_adm
  }  // namespace webrtc
 diff --git a/sdk/objc/native/src/audio/audio_device_module_ios.mm b/sdk/objc/native/src/audio/audio_device_module_ios.mm
-index db4ed21f9a..97c811b851 100644
+index 33ba926bec..1f59395bd9 100644
 --- a/sdk/objc/native/src/audio/audio_device_module_ios.mm
 +++ b/sdk/objc/native/src/audio/audio_device_module_ios.mm
 @@ -21,6 +21,7 @@
@@ -357,44 +372,25 @@ index db4ed21f9a..97c811b851 100644
  #endif
  
  #define CHECKinitialized_() \
-@@ -47,6 +48,14 @@
+@@ -40,11 +41,15 @@
+ namespace webrtc {
+ namespace ios_adm {
+ 
+-AudioDeviceModuleIOS::AudioDeviceModuleIOS(bool bypass_voice_processing)
+-    : bypass_voice_processing_(bypass_voice_processing),
+-      task_queue_factory_(CreateDefaultTaskQueueFactory()) {
++AudioDeviceModuleIOS::AudioDeviceModuleIOS(AudioSourceSink* audio_sink, bool bypass_voice_processing)
++     : bypass_voice_processing_(bypass_voice_processing),
++       task_queue_factory_(CreateDefaultTaskQueueFactory()) {
+   RTC_LOG(LS_INFO) << "current platform is IOS";
    RTC_LOG(LS_INFO) << "iPhone Audio APIs will be utilized.";
++  if (audio_sink) {
++    RTC_LOG(LS_INFO) << "Initializing AudioDeviceModuleIOS with AudioSink";
++  }
++  audio_sink_ = audio_sink;
  }
  
-+AudioDeviceModuleIOS::AudioDeviceModuleIOS(RTCAudioSink* audio_sink)
-+     : task_queue_factory_(CreateDefaultTaskQueueFactory()) {
-+   RTC_LOG(INFO) << "current platform is IOS";
-+   RTC_LOG(INFO) << "iPhone Audio APIs will be utilized.";
-+   RTC_LOG(INFO) << "Initializing AudioDeviceModuleIOS with AudioSink";
-+   audio_sink_ = audioSink;
-+}
-+
    int32_t AudioDeviceModuleIOS::AttachAudioBuffer() {
-     RTC_DLOG(LS_INFO) << __FUNCTION__;
-     audio_device_->AttachAudioBuffer(audio_device_buffer_.get());
-diff --git a/sdk/objc/native/src/audio/audio_sink.h b/sdk/objc/native/src/audio/audio_sink.h
-new file mode 100644
-index 0000000000..5739de9a43
---- /dev/null
-+++ b/sdk/objc/native/src/audio/audio_sink.h
-@@ -0,0 +1,16 @@
-+#import "sdk/objc/api/peerconnection/RTCAudioSink.h"
-+
-+namespace webrtc {
-+    class AudioSourceSink {
-+        public:
-+        AudioSourceSink(RTCAudioSink *sink) {
-+            sink_ = sink;
-+        }
-+        void onAudioFrame(int32_t frame) {
-+            [sink_ onAudioframe:frame];
-+        }
-+
-+        private:
-+        __weak RTCAudioSink *sink_;
-+    }
-+}
-\ No newline at end of file
 diff --git a/sdk/objc/native/src/audio/audio_source_sink.h b/sdk/objc/native/src/audio/audio_source_sink.h
 new file mode 100644
 index 0000000000..06eb4ef672
@@ -463,4 +459,4 @@ index 0000000000..11cf958591
 +    [sink_ onRemoteAudioFrameWithFlags:flags timeStamp:time_stamp busNumber:bus_number numFrames:num_frames ioData:io_data];
 +  }
 +}
-\ No newline at end of file
++
