@@ -90,7 +90,10 @@ gclient sync --with_branch_heads --with_tags
 cd src
 
 # Step 2.5 - Apply patches (Temp)
+# First, unwind any previous patches so we're applying to a clean checkout
 echo "Applying patches..."
+git reset --hard HEAD
+git clean -fd
 git apply ../patches/0001-rtcaudiosink.patch
 sed -i '' 's/-ffile-compilation-dir/-fdebug-compilation-dir/g' ./build/config/compiler/BUILD.gn
 sed -i '' 's/cflags += \[ "-gdwarf-aranges" \]/# cflags += \[ "-gdwarf-aranges" \]/g' ./build/config/compiler/BUILD.gn
