@@ -120,7 +120,7 @@ print("✅ New Version is available to build")
 
 # Build WebRTC Frameworks
 print("➡️ Building WebRTC Library...")
-buildSuccess = True #buildWebRTC(nextRelease.branch)
+buildSuccess = buildWebRTC(nextRelease.branch)
 if not buildSuccess:
     print("❌ WebRTC Build Failed")
     os._exit(os.EX_SOFTWARE)
